@@ -43,15 +43,18 @@ function run() {
   local part="${1:?missing part param 'a' or 'b'}"
   local lang="${2:-$LANG}"
 
-  local f="$PDIR/$part.$lang"
-  if [[ ! -f $f ]]; then >&2 echo "missing file $f"; return 1; fi
+  local f="$part.$lang"
+  if [[ ! -f $PDIR/$f ]]; then >&2 echo "missing file $f"; return 1; fi
 
   case $lang in
   go)
-    go run "$f";;
+    go run "$PDIR/$f";;
   *)
-    if [[ ! -x $f ]]; then chmod +x "$f"; >&2 echo "made file $f executable"; fi
-    "$f";;  # just run as executable
+    (
+      cd "$PDIR"
+      if [[ ! -x $f ]]; then chmod +x "$f"; >&2 echo "made file $f executable"; fi
+      "./$f"  # just run as executable
+    );;
   esac | tee >(tail -n1 | pbcopy)
 }
 
