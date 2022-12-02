@@ -4,8 +4,10 @@
 
 YEAR=2022
 DAY=$1
+LANG=${2:-py}
 
 function 2d() { printf "%02d" "$1"; }
+PDIR="p$(2d $DAY)"
 
 function get() {
   while ! curl --fail -b ~/.aoc_cookies https://adventofcode.com/$YEAR/day/$DAY/input -o inputs/$DAY.input; do
@@ -19,60 +21,58 @@ function get() {
       /<h2 id="part2">/{part="b";}
       /<pre><code>/{gsub("<pre><code>",""); on=1;}
       /<\/code><\/pre>/{on=0;num++;}
-      on{file = "inputs/'$DAY'" part ".sample" num ".input"; print > file;}
+      on{file = "inputs/'$DAY'.sample" num ".input"; print > file;}
     '
 
-  for f in inputs/$DAY?.sample*.input; do
+  for f in inputs/$DAY.sample*.input; do
     sed -E -i '' -e 's|</?[^>]+>||g ; s|&lt;|<|g ; s|&gt;|>|g' "$f"
   done
 }
 
-function samp() {
-  local prob=$DAY$1
-  local samp=${2:-0}
-  runfile "$prob" <inputs/$DAY?.sample$samp.input
+function runsamp() {
+  samp="$1"
+  shift
+  run "$@" <"$(sampfile "$samp")"
+}
+
+function runmain() {
+  run "$@" <"$(mainfile)"
 }
 
 function run() {
-  local prob=$DAY$1
-  runfile "$prob" <inputs/$DAY.input
-}
-
-function runfile() {
-  local prob="$1"
-  go run . $prob | tee >(tail -n1 | pbcopy)
-}
-
-function sampjq() {
   local part="${1:?missing part param 'a' or 'b'}"
-  local samp=${2:-0}
-  runjqfile "$part" <inputs/$DAY?.sample$samp.input
+  local lang="${2:-$LANG}"
+
+  local f="$PDIR/$part.$lang"
+  if [[ ! -f $f ]]; then >&2 echo "missing file $f"; return 1; fi
+
+  case $lang in
+  go)
+    go run "$f";;
+  *)
+    if [[ ! -x $f ]]; then chmod +x "$f"; >&2 echo "made file $f executable"; fi
+    "$f";;  # just run as executable
+  esac | tee >(tail -n1 | pbcopy)
 }
 
-function runjq() {
-  local part="${1:?missing part param 'a' or 'b'}"
-  runjqfile "$part" <inputs/$DAY.input
+function mainfile() {
+  echo inputs/$DAY.input
 }
 
-function runjqfile() {
-  local day2d=$(2d $DAY)
-  local part="${1:?missing part param 'a' or 'b'}"
-  p$day2d/p$day2d$part.jq | tee >(tail -n1 | pbcopy)
+function sampfile() {
+  local samp="${1:?missing sample num}"
+  echo inputs/$DAY.sample$samp.input
 }
 
-function samppy() {
-  local part="${1:?missing part param 'a' or 'b'}"
-  local samp=${2:-0}
-  runpyfile "$part" <inputs/$DAY?.sample$samp.input
-}
-
-function runpy() {
-  local part="${1:?missing part param 'a' or 'b'}"
-  runpyfile "$part" <inputs/$DAY.input
-}
-
-function runpyfile() {
-  local day2d=$(2d $DAY)
-  local part="${1:?missing part param 'a' or 'b'}"
-  python3 py/p$day2d$part.py | tee >(tail -n1 | pbcopy)
-}
+# Set up initial stuff, if the problem dir does not exist
+if [[ ! -d $PDIR ]]; then
+  mkdir -p "$PDIR"
+  cp -r helpers "$PDIR/"
+  for l in py jq; do
+    for p in a b; do
+      out="$PDIR/$p.$l"
+      cp template.$l "$out"
+      chmod +x "$out"
+    done
+  done
+fi
