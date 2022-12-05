@@ -1,2 +1,2 @@
-#!/usr/bin/env jq -s -R -f
+#!/usr/bin/env jq -s -R -r -f
 include "./helpers";
