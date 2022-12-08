@@ -14,9 +14,9 @@ def scanpoints($startpt; $endpt):
 # input: grid, output: all coordinates
 def scangrid: scanpoints([0, 0]; griddims);
 
-def inbounds($grid):
-  .[0] >= 0 and .[0] < ($grid|length) and
-  .[1] >= 0 and .[1] < ($grid[0]|length)
+def inbounds($pt):
+  $pt[0] >= 0 and $pt[0] < length and
+  $pt[1] >= 0 and $pt[1] < (.[0]|length)
 ;
 
 def at($p):
@@ -31,3 +31,6 @@ def set($p; $to): .[$p[0]][$p[1]] = $to;
 
 def nbr4: .[0] += (-1, 1), .[1] += (-1, 1);
 def nbr8: nbr4, ( .[0] += (-1, 1) | .[1] += (-1, 1) );
+
+def addpt($delta): [.[0] + $delta[0], .[1] + $delta[1]];
+def subpt($delta): [.[0] - $delta[0], .[1] - $delta[1]];

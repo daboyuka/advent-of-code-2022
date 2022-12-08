@@ -5,7 +5,7 @@ from collections import *
 from functools import *
 import re
 
-g = parsegrid(lines())
+g = parsegrid(lines(), int)
 
 s = g.bounds()
 
@@ -14,7 +14,7 @@ for r in range(s[0]):
     h = -1
     for c in range(0, s[1]):
         pt = P(r, c)
-        ph = int(g.at(pt))
+        ph = g.at(pt)
         if ph > h:
             found.add(pt)
             h = ph
@@ -22,7 +22,7 @@ for r in range(s[0]):
     h = -1
     for c in range(s[1]-1, -1, -1):
         pt = P(r, c)
-        ph = int(g.at(pt))
+        ph = g.at(pt)
         if ph > h:
             found.add(pt)
             h = ph
@@ -32,7 +32,7 @@ for c in range(s[1]):
     h = -1
     for r in range(0, s[0]):
         pt = P(r, c)
-        ph = int(g.at(pt))
+        ph = g.at(pt)
         if ph > h:
             found.add(pt)
             h = ph
@@ -40,7 +40,7 @@ for c in range(s[1]):
     h = -1
     for r in range(s[0]-1, -1, -1):
         pt = P(r, c)
-        ph = int(g.at(pt))
+        ph = g.at(pt)
         if ph > h:
             found.add(pt)
             h = ph

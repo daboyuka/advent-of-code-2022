@@ -5,7 +5,7 @@ from collections import *
 from functools import *
 import re
 
-g = parsegrid(lines())
+g = parsegrid(lines(), int)
 
 s = g.bounds()
 
@@ -15,15 +15,13 @@ def scan(g, pt, h, delta):
     while g.inbounds(pt):
         h2 = g.at(pt)
         x += 1
-        if int(h2) >= h:
+        if h2 >= h:
             break
         pt += delta
     return x
 
 maxscene = 0
 for pt, h in g.itertiles():
-    h = int(h)
-
     s1 = scan(g, pt, h, P(1, 0))
     s2 = scan(g, pt, h, P(-1, 0))
     s3 = scan(g, pt, h, P(0, 1))

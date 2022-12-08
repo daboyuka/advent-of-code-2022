@@ -173,5 +173,5 @@ class grid(list):
 def newgrid(bb, fill):
     return grid([[fill for j in range(bb.c)] for i in range(bb.r)])
 
-def parsegrid(lines):
-    return grid(typmap(list, lines))
+def parsegrid(lines, mapcell=lambda x: x):
+    return grid([[mapcell(cell) for cell in list(line)] for line in lines])
