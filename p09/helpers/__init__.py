@@ -52,8 +52,8 @@ def sgn(x): return 1 if x > 0 else -1 if x < 0 else 0
 
 # Compute bounding box of list of pts
 def bounds(pts):
-    xs, ys = typmap(lambda x: x[0], pts), typmap(lambda x: x[1], pts)
-    return P(min(*xs), min(*ys)), P(max(*xs) + 1, max(*ys) + 1)
+    xs, ys = list(map(lambda x: x[0], pts)), list(map(lambda x: x[1], pts))
+    return P(min(xs), min(ys)), P(max(xs) + 1, max(ys) + 1)
 
 # Iterate over bounding box from pt a to b
 def iterbb(a, b):
@@ -94,10 +94,14 @@ class P(tuple):
     __rmul__ = __mul__
     __rtruediv__ = __truediv__
 
-    def neighbors(self):
+    def nbr4(self):
         for i in range(self.dim):
             yield self + P(*(1 if i == j else 0 for j in range(self.dim)))
             yield self + P(*(-1 if i == j else 0 for j in range(self.dim)))
+    def nbr8(self):
+        for delta in itertools.product([-1, 0, 1], repeat=self.dim):
+            if -1 in delta or 1 in delta:
+                yield self + P(*delta)
 
 class dir(int):
     x, y = [1, 0, -1, 0], [0, 1, 0, -1]
@@ -112,25 +116,44 @@ class dir(int):
 east, north, west, south = tuple(map(dir, range(4)))
 
 class grid(list):
-    def inbounds(self, pt):
-        return pt.r >= 0 and pt.r < len(self) and pt.c >= 0 and pt.c < len(self[pt.r])
-    def bounds(self):
+    def __init__(self, rows, base=(0,0)):
+        super().__init__(rows)
+        self.base = P(*base)
+
+    def size(self):
         return P(len(self), len(self[0]))
+    def bounds(self):
+        return self.base, self.base + self.size()
+    def inbounds(self, pt):
+        lb, ub = self.bounds()
+        return pt.r >= lb.r and pt.r < ub.r and pt.c >= lb.c and pt.c < ub.c
     def at(self, pt, default=None):
         if not self.inbounds(pt):
             return default
+        pt -= self.base
         return self[pt.r][pt.c]
     def set(self, pt, v):
         if not self.inbounds(pt):
             raise Exception("out of bounds: {} outside {}".format(pt, self.bounds()))
+        pt -= self.base
         self[pt.r][pt.c] = v
-    def itertiles(self):
-        for r, row in enumerate(self):
-            for c, t in enumerate(row):
-                yield P(r, c), t
+
     def render(self):
         return "\n".join(["".join(row) for row in self])
 
+    def itertiles(self):
+        for r, row in enumerate(self):
+            for c, t in enumerate(row):
+                yield self.base + P(r, c), t
+    def count(self, v):
+        if not callable(v):
+            find = v
+            v = lambda x: x == find
+
+        return sum(1 for _, x in self.itertiles() if v(x))
+
+
+    # TODO: this algorithm is probably broken :( need to fix
     # breaktie: lambda ptX, ptT: return ptX < ptY
     def shortpath(self, a, b, passable, maxd=None, neighbors=None, breaktie=None):
         neighbors = neighbors if neighbors else P.neighbors
@@ -161,12 +184,23 @@ class grid(list):
 
     def copy(self):
         g2 = grid([])
+        g2.base = self.base
         for row in self:
             g2.append(row.copy())
         return g2
 
-def newgrid(bb, fill):
-    return grid([[fill for j in range(bb.c)] for i in range(bb.r)])
+def newgrid(ub, fillval):
+    return grid([[fillval for j in range(ub.c)] for i in range(ub.r)])
 
-def parsegrid(lines, mapcell=lambda x: x):
-    return grid([[mapcell(cell) for cell in list(line)] for line in lines])
+def newgridbased(lb, ub, fillval):
+    return grid([[fillval for j in range(ub.c - lb.c)] for i in range(ub.r - lb.r)], lb)
+
+def newgridpts(pts, ptval, fillval):
+    lb, ub = bounds(pts)
+    g = newgridbased(lb, ub, fillval)
+    for pt in pts:
+        g.set(pt, ptval)
+    return g
+
+def parsegrid(lines):
+    return grid(typmap(list, lines))
