@@ -6,11 +6,13 @@ import math
 import sys
 
 
-def lines():
-    return list(map(lambda x: x.rstrip("\n"), sys.stdin.readlines()))
+# xforml transforms each line
+def lines(xforml=lambda l: l):
+    return list(map(lambda x: xforml(x.rstrip("\n")), sys.stdin.readlines()))
 
-
-def linegroups():
+# xform transforms each line, and xformlg transforms entire
+# linegroups (lists of lines, after xform has been applied)
+def linegroups(xforml=lambda l: l, xformlg=lambda lg: lg):
     def r(parts, x):
         if x == "":
             parts.append([])
@@ -18,50 +20,53 @@ def linegroups():
             parts[-1].append(x)
         return parts
 
-    return functools.reduce(r, lines(), [[]])
+    return typmap(xformlg, functools.reduce(r, lines(xforml), [[]]))
 
+# lineparser returns an xforml (for use with lines/linegroups) that
+# parses a line by splitting on delim and transforming the items
+# with a series of transforms, returning the tuple.
+# (If a line has fewer items than transforms, later transforms
+# are not called and the tuple is shortened.)
+def lineparser(*xforms, d=" "):
+    return lambda l: tuple(xforms[i](x) for (i, x) in enumerate(l.split(d)))
 
 def intline(l): return typmap(int, l)
 def intlines(): return typmap(intline, lines())
 
-
 def idict(): return collections.defaultdict(lambda: 0)
-
-
 def sdict(): return collections.defaultdict(lambda: "")
-
 
 def typmap(f, iterable):
     t = type(iterable)
     return t(map(f, iterable))
 
+#
+# Math
+#
 
-def tadd(t1, t2): return tuple(map(sum, zip(t1, t2)))
+def sgn(x): return 1 if x > 0 else -1 if x < 0 else 0
 
-
-def tsub(t1, t2): return tuple(map(lambda x: x[0] - sum(x[1:]), zip(t1, t2)))
-
+#
+# Points and geometry
+#
 
 # Compute bounding box of list of pts
 def bounds(pts):
     xs, ys = typmap(lambda x: x[0], pts), typmap(lambda x: x[1], pts)
     return P(min(*xs), min(*ys)), P(max(*xs) + 1, max(*ys) + 1)
 
-
 # Iterate over bounding box from pt a to b
 def iterbb(a, b):
     ranges = map(lambda lu: range(*lu), zip(a, b))
     return itertools.product(*ranges)
 
-
 # Manhattan distance
 def mdist(a, b):
-    return sum(map(lambda ab: abs(ab[0] - ab[1]), zip(a, b)))
+    return sum(abs(a[i] - b[i]) for i in range(len(a)))
 
 # Euclidean distance
 def dist(a, b):
-    return math.sqrt(sum(map(lambda ab: (ab[0] - ab[1]) ** 2, zip(a, b))))
-
+    return math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(len(a))))
 
 class P(tuple):
     class _f(int):
@@ -93,16 +98,6 @@ class P(tuple):
         for i in range(self.dim):
             yield self + P(*(1 if i == j else 0 for j in range(self.dim)))
             yield self + P(*(-1 if i == j else 0 for j in range(self.dim)))
-
-
-class dir(int):
-    x, y = [1, 0, -1, 0], [0, 1, 0, -1]
-    def vec(self, l=1):
-        return P(dir.x[self]*l, dir.y[self]*l)
-    def turn(self, amt):
-        return dir((self + amt) % 4)
-
-east, north, west, south = tuple(map(dir, range(4)))
 
 class dir(int):
     x, y = [1, 0, -1, 0], [0, 1, 0, -1]

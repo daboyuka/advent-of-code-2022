@@ -5,14 +5,8 @@ from collections import *
 from functools import *
 import re
 
-def parse(line):
-    a, b = tuple(line.split(" "))
-    return a, int(b)
+dirs = lines(lineparser(str, int))
 
-dirs = typmap(parse, lines())
-
-
-def sgn(x): return 1 if x > 0 else -1 if x < 0 else 0
 
 def move(h, t):
     if abs(h[0] - t[0]) <= 1 and abs(h[1] - t[1]) <= 1:
