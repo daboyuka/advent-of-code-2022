@@ -5,6 +5,7 @@ import itertools
 import math
 import sys
 
+BLK = "\u2588"  # full ASCII block
 
 # xforml transforms each line
 def lines(xforml=lambda l: l):

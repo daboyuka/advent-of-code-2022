@@ -4,16 +4,26 @@ import functools
 import itertools
 import math
 import sys
+import re
+import operator
 
 BLK = "\u2588"  # full ASCII block
 
-# xforml transforms each line
-def lines(xforml=lambda l: l):
-    return list(map(lambda x: xforml(x.rstrip("\n")), sys.stdin.readlines()))
+#
+# Parsing
+#
 
-# xform transforms each line, and xformlg transforms entire
-# linegroups (lists of lines, after xform has been applied)
-def linegroups(xforml=lambda l: l, xformlg=lambda lg: lg):
+# parser is an item mapper applied to each line
+def lines(parser=lambda l: l):
+    ls = sys.stdin.readlines()
+    ls = map(lambda x: x.rstrip("\n"), ls)
+    ls = map(parser, ls)
+    return list(ls)
+
+# parser is an item mapper applied to each line
+# lgparser is an item parser applied to each linegroup (after parser
+# has been applied to constituent lines)
+def linegroups(parserlg=lambda lg: lg, parser=lambda l: l):
     def r(parts, x):
         if x == "":
             parts.append([])
@@ -21,18 +31,60 @@ def linegroups(xforml=lambda l: l, xformlg=lambda lg: lg):
             parts[-1].append(x)
         return parts
 
-    return typmap(xformlg, functools.reduce(r, lines(xforml), [[]]))
+    lgs = functools.reduce(r, lines(parser), [[]])
+    return list(map(parserlg, lgs))
 
-# lineparser returns an xforml (for use with lines/linegroups) that
-# parses a line by splitting on delim and transforming the items
-# with a series of transforms, returning the tuple.
-# (If a line has fewer items than transforms, later transforms
-# are not called and the tuple is shortened.)
-def lineparser(*xforms, d=" "):
-    return lambda l: tuple(xforms[i](x) for (i, x) in enumerate(l.split(d)))
 
-def intline(l): return typmap(int, l)
-def intlines(): return typmap(intline, lines())
+# pchain returns an item mapper that applies each mappers[i] in sequence
+# to each item.
+def pchain(*mappers):
+    def _parse(l):
+        for m in mappers:
+            l = m(l)
+        return l
+    return _parse
+
+# pdelim returns an item mapper that splits a line on a delim.
+def pdelim(d=" "):
+    return lambda l: l.split(d)
+
+# pints returns an item mapper that splits a line into a list of ints
+# (or other type if typ is given).
+def pints(d=" ", typ=int):
+    return lambda l: tmap(typ, l.split(d))
+
+# ptuple returns an item mapper for tuples that maps the i'th component
+# of each tuple using emappers[i].
+#
+# If a tuple has fewer components than emappers, later emappers are ignored
+# If a tuple has more components than emappers, emappers[-1] is applied to excess components
+def ptuple(*emappers):
+    return lambda t: tuple(
+        emappers[i if i < len(emappers) else -1](e)
+        for (i, e) in enumerate(t)
+    )
+
+# pre returns an item mapper that parses a line using regexp r,
+# returning all capture groups as a tuple
+def pre(r):
+    r = re.compile(r)
+    return lambda l: r.match(l).groups()
+
+
+# prelg returns an item mapper that parses a linegroup using regexp r,
+# returning all capture groups as a tuple
+#
+# The regexp is stripped, and linegroup lines are stripped and joined by
+# newline (with no final newline). This allows a triple-quoted raw string
+# to be used as the regexp without worrying about stray newlines at the edges).
+def prelg(r):
+    next = pre("(?m)" + r.strip())
+    return lambda lg: next("\n".join(map(str.strip, lg)))
+
+
+#
+# Data structs and list funcs
+#
 
 def idict(): return collections.defaultdict(lambda: 0)
 def sdict(): return collections.defaultdict(lambda: "")
@@ -40,6 +92,11 @@ def sdict(): return collections.defaultdict(lambda: "")
 def typmap(f, iterable):
     t = type(iterable)
     return t(map(f, iterable))
+
+def prod(l):
+    return functools.reduce(operator.mul, l, 1)
+
+tmap = typmap  # alias
 
 #
 # Math
