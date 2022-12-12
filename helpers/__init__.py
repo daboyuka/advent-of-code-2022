@@ -6,6 +6,7 @@ import math
 import sys
 import re
 import operator
+import heapq
 
 BLK = "\u2588"  # full ASCII block
 
@@ -94,6 +95,31 @@ def prod(l):
     return functools.reduce(operator.mul, l, 1)
 
 tmap = typmap  # alias
+
+# edgedist: lambda x, y: weight of edge (x, y) (only called on neighboring nodes)
+#           (weight must be additive and comparable)
+def shortpath(a, b, nbrs, edgedist, maxd=None):
+    # trace from b backwards, to build path table
+    path = {}  # node -> next node on shortest path to b
+    next = [(None, b, None)]  # a heap of (dist, node, prev node on path to b)
+    while len(next) > 0:
+        d, cur, prev = heapq.heappop(next)
+        if cur in path:
+            continue
+        elif maxd != None and d >= maxd:
+            continue
+
+        path[cur] = prev
+        if cur == a:
+            return d, path
+
+        for nbr in nbrs(cur):
+            d2 = edgedist(nbr, cur)
+            if d != None:
+                d2 += d
+            heapq.heappush(next, (d2, nbr, cur))
+
+    return None, None
 
 #
 # Math
@@ -207,35 +233,13 @@ class grid(list):
 
         return sum(1 for _, x in self.itertiles() if v(x))
 
+    # passable: tileval -> True/False (can walk on)
+    def shortpath(self, a, b, passable, maxd=None, nbrs=P.nbr4):
+        _passable = passable if callable(passable) else lambda t: t == passable
+        _nbrs = lambda pt: (nbr for nbr in nbrs(pt) if self.inbounds(nbr) and _passable(self.at(nbr)))
 
-    # TODO: this algorithm is probably broken :( need to fix
-    # breaktie: lambda ptX, ptT: return ptX < ptY
-    def shortpath(self, a, b, passable, maxd=None, neighbors=None, breaktie=None):
-        neighbors = neighbors if neighbors else P.neighbors
-        def tileok(pt):
-            return self.inbounds(pt) and (pt == a or passable(self.at(pt)))
-
-        prev = {b: (b, 0)} # pt -> (prev, dist)
-        next = collections.deque([(b, 0)])  # (pt, dist)
-        while len(next) > 0:
-            pt, d = next.popleft()
-            if pt == a:
-                return d, prev[pt][0], prev
-
-            if d == maxd:
-                continue
-
-            ns = (pt2 for pt2 in neighbors(pt) if tileok(pt2))
-            for pt2 in ns:
-                if pt2 in prev:
-                    prevpt, prevd = prev[pt2]
-                    if d > prevd or (d == prevd and not breaktie(pt, prevpt)):
-                        continue  # if we already have an equal-len path to pt2 and pt is not better, skip it
-
-                prev[pt2] = (pt, d)
-                next.append((pt2, d+1))
-
-        return None, None, None
+        return shortpath(a, b, _nbrs, lambda x, y: 1, maxd)
+        return shortpath(a, b, _nbrs, lambda x, y: 1, maxd)
 
     def copy(self):
         g2 = grid([])
