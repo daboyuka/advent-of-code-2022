@@ -133,13 +133,30 @@ def sgn(x): return 1 if x > 0 else -1 if x < 0 else 0
 
 # Compute bounding box of list of pts
 def bounds(pts):
-    xs, ys = list(map(lambda x: x[0], pts)), list(map(lambda x: x[1], pts))
-    return P(min(xs), min(ys)), P(max(xs) + 1, max(ys) + 1)
+    ndim = len(next(iter(pts)))
+    lb, ub = (), ()
+    for dim in range(ndim):
+        lb += (min(pt[dim] for pt in pts),)
+        ub += (max(pt[dim] for pt in pts) + 1,)
+    return P(*lb), P(*ub)
 
 # Iterate over bounding box from pt a to b
 def iterbb(a, b):
     ranges = map(lambda lu: range(*lu), zip(a, b))
     return itertools.product(*ranges)
+
+# Iterate over horizontal/vertical line
+def iterline(a, b):
+    idxs = [i for i in range(len(a)) if a[i] != b[i]]
+    if len(idxs) == 0:
+        yield a
+    elif len(idxs) > 1:
+        raise ValueError("{} and {} have {} differing coordinates".format(a, b, len(idxs)))
+
+    i = idxs[0]
+    ai, bi = (a[i], b[i]) if a[i] < b[i] else (b[i], a[i])
+    for x in range(ai, bi+1):
+        yield a.replace(i, x)
 
 # Manhattan distance
 def mdist(a, b):
@@ -148,6 +165,7 @@ def mdist(a, b):
 # Euclidean distance
 def dist(a, b):
     return math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(len(a))))
+
 
 class P(tuple):
     class _f(int):
@@ -174,6 +192,16 @@ class P(tuple):
         return P(*map(lambda x: x / other, self))
     __rmul__ = __mul__
     __rtruediv__ = __truediv__
+
+    def replace(self, idx, v):
+        return P(*self[:idx], v, *self[idx+1:])
+
+    # Return P with all coords increased by 1 (e.g. inclusive -> exclusive bound)
+    def inc(self):
+        return P(*(v + 1 for v in self))
+    # Return P with all coords decreased by 1 (e.g. exclusive -> inclusive bound)
+    def dec(self):
+        return P(*(v - 1 for v in self))
 
     def nbr4(self):
         for i in range(self.dim):
@@ -239,7 +267,6 @@ class grid(list):
         _nbrs = lambda pt: (nbr for nbr in nbrs(pt) if self.inbounds(nbr) and _passable(self.at(nbr)))
 
         return shortpath(a, b, _nbrs, lambda x, y: 1, maxd)
-        return shortpath(a, b, _nbrs, lambda x, y: 1, maxd)
 
     def copy(self):
         g2 = grid([])
@@ -263,3 +290,70 @@ def newgridpts(pts, ptval, fillval):
 
 def parsegrid(lines):
     return grid(typmap(list, lines))
+
+class infgrid(dict):
+    def __init__(self, pts=[], ptval='#', fillval='.', loose=False):
+        super().__init__((pt, ptval) for pt in pts)
+        self.fillval, self.loose = fillval, loose
+        if len(self) > 0:
+            self.lb, self.ub = self._computebb()
+        else:
+            self.lb, self.ub = P(0,0), P(0,0)
+
+    def _computebb(self):
+        return bounds(self.keys())
+    def size(self):
+        return self.ub - self.lb
+    def bounds(self):
+        return self.lb, self.ub
+    def inbounds(self, pt):
+        lb, ub = self.bounds()
+        return pt.r >= lb.r and pt.r < ub.r and pt.c >= lb.c and pt.c < ub.c
+    def onbounds(self, pt):
+        lb, ub = self.bounds()
+        return pt.r == lb.r or pt.r == ub.r-1 or pt.c == lb.c or pt.c == ub.c-1
+
+    def at(self, pt):
+        return self.get(pt, self.fillval) if self.inbounds(pt) else self.fillval
+    def set(self, pt, v):
+        if v == self.fillval:
+            self.pop(pt, None)
+            if not self.loose and self.onbounds(pt):
+                self.lb, self.ub = self._computebb()  # tighten bounds if we removed a potential boundary point
+        else:
+            self[pt] = v
+            if len(self) == 1:
+                self.lb, self.ub = pt, pt.inc()
+            else:
+                self.lb, self.ub = bounds([self.lb, self.ub.dec(), pt])
+
+    def render(self):
+        lb, ub = self.bounds()
+        out = ""
+        for r in range(lb.r, ub.r):
+            line = ""
+            for c in range(lb.c, ub.c):
+                line += self.at(P(r, c))
+            out += line + "\n"
+        return out
+
+    def itertiles(self):
+        return self.items()
+    def count(self, v):
+        if not callable(v):
+            find = v
+            v = lambda x: x == find
+
+        return sum(1 for x in self.values() if v(x))
+
+    # passable: tileval -> True/False (can walk on)
+    def shortpath(self, a, b, passable, maxd=None, nbrs=P.nbr4):
+        _passable = passable if callable(passable) else lambda t: t == passable
+        _nbrs = lambda pt: (nbr for nbr in nbrs(pt) if self.inbounds(nbr) and _passable(self.at(nbr)))
+
+        return shortpath(a, b, _nbrs, lambda x, y: 1, maxd)
+
+    def copy(self):
+        g2 = super().copy()
+        g2.fillval, self.loose, g2.lb, g2.ub = self.fillval, self.loose, self.lb, self.ub
+        return g2

@@ -7,19 +7,7 @@ import re
 
 ls = lines()
 
-allpts = []
-
-def line(a, b):
-    if a.r == b.r:
-        if a.c > b.c:
-            line(b, a)
-        else:
-            allpts.extend(P(a.r, c) for c in range(a.c, b.c+1))
-    else:
-        if a.r > b.r:
-            line(b, a)
-        else:
-            allpts.extend(P(r, a.c) for r in range(a.r, b.r+1))
+g = infgrid()
 
 for l in ls:
     comps = l.split(" ")
@@ -28,14 +16,13 @@ for l in ls:
         c, r = typmap(int, comps[i].split(","))
         pt = P(r, c)
         if prev != None:
-            line(prev, pt)
+            for x in iterline(prev, pt):
+                g.set(x, '#')
+
         prev = pt
 
 head = P(0, 500)
-allpts.append(head)
-g = newgridpts(allpts, '#', '.')
 g.set(head, '+')
-
 print(g.render())
 
 
@@ -47,7 +34,7 @@ def drop(pt):
         for next in [pt + P(1, 0), pt + P(1, -1),pt + P(1, 1)]:
             if not g.inbounds(next):
                 return False # fall off map
-            elif g.at(next, '.') == '.':
+            elif g.at(next) == '.':
                 pt = next
                 moved = True
                 break
@@ -57,7 +44,7 @@ def drop(pt):
 
 sand = 0
 while drop(head):
-    # print(g.render())
     sand += 1
 
+print(g.render())
 print(sand)
