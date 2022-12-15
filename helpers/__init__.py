@@ -357,3 +357,67 @@ class infgrid(dict):
         g2 = super().copy()
         g2.fillval, self.loose, g2.lb, g2.ub = self.fillval, self.loose, self.lb, self.ub
         return g2
+
+# half-open interval
+class intv(tuple):
+    def __new__(cls, a, b):
+        if a >= b: a, b = 0, 0
+        return super().__new__(cls, [a, b])
+
+    def degen(self): return self[0] >= self[1]
+
+    def intersects(self, other):
+        return self[0] < other[1] and other[0] < self[1]
+    def contains(self, other):
+        return self[0] <= other[1] and self[1] >= other[1]
+    def overlaps(self, other):
+        return self.intersects(other) and not self.contains(other) and not other.contains(self)
+    def has(self, x):
+        return self[0] <= x < self[1]
+
+    def labuts(self, other): return self[1] == other[0]
+    def rabuts(self, other): return self[0] == other[1]
+    def abuts(self, other): return self.labuts(other) or self.rabuts(other)
+
+    def union(self, other):
+        if self.intersects(other) or self.abuts(other):
+            return intv(min(self[0], other[0]), max(self[1], other[1])), (0,0)
+        else:
+            return self, other
+
+    def sub(self, other):
+        return intv(self[0], min(self[1], other[0])), intv(max(self[0], other[1]), self[1])
+
+# iterintvs generates intervals as the (union of intervals pos) minus (union of intervals neg)
+def iterintvs(pos, neg):
+    evts = []  # (position, is end?, is pos?)
+
+    for x in pos:
+        evts.append((x[0], False, True))
+        evts.append((x[1], True, True))
+    for x in neg:
+        evts.append((x[0], False, False))
+        evts.append((x[1], True, False))
+
+    evts.sort()
+    poscount, negcount = 0, 0
+    begin = None
+    def on(): return poscount > 0 and negcount == 0
+
+    for x, isEnd, isPos in evts:
+        wasOn = on()
+
+        delta = -1 if isEnd else 1
+        if isPos:
+            poscount += delta
+        else:
+            negcount += delta
+
+        # print(x, isEnd, isPos, "=>", wasOn, on(), delta, poscount, negcount)
+
+        if not wasOn and on():
+            begin = x
+        elif wasOn and not on():
+            out = intv(begin, x)
+            if not out.degen():
+                yield out
