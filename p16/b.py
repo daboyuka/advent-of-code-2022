@@ -20,13 +20,15 @@ ls = lines(pchain(
 doors = collections.defaultdict(lambda: idict()) # at => at2 => dist
 valves = dict()
 
-goodvalves = 0
+goodvalves = set()
 for src, flow, dsts in ls:
     valves[src] = flow
     if flow > 0:
-        goodvalves += 1
+        goodvalves.add(src)
     for dst in dsts:
         doors[src][dst] = 1
+
+goodvalves = frozenset(goodvalves)
 
 #
 # def fuse(at):
@@ -58,6 +60,7 @@ for pivot in ds:
                 if (a, b) not in paths or paths[(a, b)] > newd:
                     paths[(a, b)] = newd
 
+
 # for a, n in doors.items():
 #     for b, d in n.items():
 #         print(a, "=>", b, "=", d)
@@ -67,60 +70,40 @@ for pivot in ds:
 #     for b, d in n.items():
 #         print(a, "=>", b, "=", d)
 
-bests = collections.defaultdict(lambda: []) # (at, opens) => [(trem, bestscore)]
+bests = idict()  # set of opens => best score accomplished
+atbests = idict()  # (at, set of opens) => best score accomplished
 
-# state = (at, trem)
+def recurse(at, trem, opens, score):
+    global bests
+    # if trem <= 2:
+    #     return
+    if atbests[(at, opens)] > score:
+        return
 
-def findbest(ats, opens, trems):
-    return max((b[1] for b in bests[(ats, opens)] if b[0][0] >= trems[0] and b[0][1] >= trems[1]), default=-1)
+    atbests[(at, opens)] = score
+    if bests[opens] < score:
+        bests[opens] = score
 
-def addbest(ats, opens, trems, score):
-    bests[(ats, opens)].append((trems, score))
+    for at2, flow in valves.items():
+        if flow == 0 or at2 in opens:
+            continue
+        if (at, at2) not in paths:
+            continue
+        d = paths[(at, at2)]
+        if d+1 > trem:
+            continue
 
-# guess 2279
-# 2286
-# 2294
+        opens2 = opens.union({at2})
+        trem2 = trem-d-1
+        score2 = score + trem2 * flow
+        recurse(at2, trem2, opens2, score2)
+
+recurse("AA", 26, frozenset(), 0)
+
 bestscore = 0
-def recurse(ats, i, allowed, score, opens, trems):
-    if ats[0] > ats[1]:
-        ats, trems, allowed, i = (ats[1], ats[0]), (trems[1], trems[0]), (allowed[1], allowed[0]), 1-i
-
-    global bestscore
-    prevbest = findbest(ats, opens, trems)
-    if prevbest > score:
-        return
-
-    addbest(ats, opens, trems, score)
-
-    if trems[i] <= 0 or allowed[i] <= 0:
-        i = 1-i
-
-    if (trems[i] <= 0 or allowed[i] <= 0) or len(opens) == goodvalves:
-        if score > bestscore:
-            bestscore = score
-            sys.stdout.flush()
-            print(score)
-        return
-
-    for v, flow in valves.items():
-        if flow == 0 or v in opens:
-            continue
-        if (ats[i], v) not in paths:
-            continue
-        d = paths[(ats[i], v)]
-        if d+1 > trems[i]:
-            continue
-
-        opens2 = opens.union({v})
-        ats2 = ats[:i] + (v,) + ats[i+1:]
-        trems2 = trems[:i] + (trems[i]-d-1,) + trems[i+1:]
-        score2 = score + (trems[i]-d-1) * flow
-        allowed2 = allowed[:i] + (allowed[i]-1,) + allowed[i+1:]
-        recurse(ats2, i, allowed2, score2, opens2, trems2)
-
-
-for allow0 in range(0, goodvalves+1):
-    print("WOW", allow0)
-    recurse(("AA", "AA"), 0, (allow0, goodvalves-allow0), 0, frozenset(), (26, 26))
+for opens1, score1 in bests.items():
+    for opens2, score2 in bests.items():
+        if opens1.isdisjoint(opens2):
+            bestscore = max(bestscore, score1 + score2)
 
 print(bestscore)
